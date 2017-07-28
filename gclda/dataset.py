@@ -173,8 +173,8 @@ class Dataset(object):
         """
         Pickle the Dataset instance to the provided file.
         """
-        with open(filename, 'w') as fo:
-            pickle.dump(self, fo)
+        with open(filename, 'w') as _:
+            pickle.dump(self, _)
 
     @classmethod
     def load(cls, filename):
@@ -182,12 +182,12 @@ class Dataset(object):
         Load a pickled Dataset instance from file.
         """
         try:
-            with open(filename, 'r') as fi:
-                dataset = pickle.load(fi)
+            with open(filename, 'r') as _:
+                dataset = pickle.load(_)
         except UnicodeDecodeError:
             # Need to try this for python3
-            with open(filename, 'r') as fi:
-                dataset = pickle.load(fi, encoding='latin')
+            with open(filename, 'r') as _:
+                dataset = pickle.load(_, encoding='latin')
 
         return dataset
 

@@ -128,10 +128,10 @@ class Model(object):
         #   regions_sigma = (n_topics, n_regions, n_peak_dims, n_peak_dims)
         self.regions_mu = []
         self.regions_sigma = []
-        for i_topic in xrange(self.n_topics):
+        for _ in xrange(self.n_topics):
             topic_mu = []
             topic_sigma = []
-            for j_region in xrange(self.n_regions):
+            for _ in xrange(self.n_regions):
                 topic_mu.append(np.zeros(shape=(1, self.n_peak_dims)))
                 topic_sigma.append(np.zeros(shape=(self.n_peak_dims, self.n_peak_dims)))
             self.regions_mu.append(topic_mu)  # (\mu^{(t)}_r)
@@ -448,20 +448,20 @@ class Model(object):
                 # -- Estimate Independent Mean For Subregion 1 --
                 # If there are no observations, we set mean equal to zeros, otherwise take MLE
                 if n_obs1 == 0:
-                    m = np.zeros([self.n_peak_dims])
+                    m_dim = np.zeros([self.n_peak_dims])
                 else:
-                    m = np.mean(vals1, axis=0)
+                    m_dim = np.mean(vals1, axis=0)
 
                 # -- Estimate Independent Mean For Subregion 2 --
                 # If there are no observations, we set mean equal to zeros, otherwise take MLE
                 if n_obs2 == 0:
-                    n = np.zeros([self.n_peak_dims])
+                    n_dim = np.zeros([self.n_peak_dims])
                 else:
-                    n = np.mean(vals2, axis=0)
+                    n_dim = np.mean(vals2, axis=0)
 
                 # -- Estimate the weighted means of all dims, where for dim1 we
                 # compute the mean w.r.t. absolute distance from the origin
-                weighted_mean_dim1 = (-m[0]*n_obs1 + n[0]*n_obs2) / (n_obs1 + n_obs2)
+                weighted_mean_dim1 = (-m_dim[0]*n_obs1 + n_dim[0]*n_obs2) / (n_obs1 + n_obs2)
                 weighted_mean_otherdims = np.mean(allvals[:, 1:], axis=0)
 
                 # Store weighted mean estimates
@@ -652,8 +652,8 @@ class Model(object):
 
         # Now compute the probability sampling x from the row-probability vector
         # (in log-space): product_i( p_i^(x_i) ), for all positive indices i
-        m, _ = np.shape(p)
-        x = np.dot(np.ones([m, 1]), x.reshape([1, len(x)]))
+        m_dim, _ = np.shape(p)
+        x = np.dot(np.ones([m_dim, 1]), x.reshape([1, len(x)]))
         xlogp = x * np.log(p)  # pylint: disable=no-member
 
         # Row-sums give total (proportional) of sampling vector x from rows of p
@@ -713,8 +713,8 @@ class Model(object):
         """
         Pickle the Model instance to the provided file.
         """
-        with open(filename, 'w') as fo:
-            pickle.dump(self, fo)
+        with open(filename, 'w') as _:
+            pickle.dump(self, _)
 
     @classmethod
     def load(cls, filename):
@@ -722,12 +722,12 @@ class Model(object):
         Load a pickled Model instance from file.
         """
         try:
-            with open(filename, 'r') as fi:
-                model = pickle.load(fi)
+            with open(filename, 'r') as _:
+                model = pickle.load(_)
         except UnicodeDecodeError:
             # Need to try this for python3
-            with open(filename, 'r') as fi:
-                model = pickle.load(fi, encoding='latin')
+            with open(filename, 'r') as _:
+                model = pickle.load(_, encoding='latin')
 
         return model
 
