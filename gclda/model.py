@@ -4,9 +4,13 @@
 Class and functions for model-related stuff.
 """
 from __future__ import print_function, division
+from future import standard_library
+standard_library.install_aliases()
+from builtins import range
+from builtins import object
 from os import mkdir
 from os.path import join, isdir
-import cPickle as pickle
+import pickle
 
 import numpy as np
 import nibabel as nib
@@ -16,36 +20,89 @@ from scipy.stats import multivariate_normal
 
 class Model(object):
     """
-    Class object for a gcLDA model
-    Model Constructor and Initialization Method
-    """
-    def __init__(self, dataset, n_topics=100, n_regions=2, alpha=.1, beta=.01,
-                 gamma=.01, delta=1.0, dobs=25.0, roi_size=50.0, symmetric=False,
-                 seed_init=1):
-        """
-        Constructor: Create a gcLDA model using a dataset object and
-        hyperparameter arguments
+    Class object for a gcLDA model.
 
-        Input parameters:
-            dataset:    Dataset object
-            n_topics:   Number of topics
-            n_regions:  Number of subregions (>=1)
-            alpha:      Prior count on topics for each doc
-            beta:       Prior count on word-types for each topic
-            gamma:      Prior count added to y-counts when sampling z
-                        assignments
-            delta:      Prior count on subregions for each topic
-            roi_size:   Default spatial 'region of interest' size (default value
-                        of diagonals in covariance matrix for spatial
-                        distribution, which the distributions are biased
-                        towards)
-            dobs:       Spatial region 'default observations' (# observations
-                        weighting Sigma estimates in direction of default
-                        'roi_size' value)
-            symmetric:  Use symmetry constraint on subregions? (symmetry
-                        requires n_regions = 2)
-            seed_init:  Initial value of random seed
-        """
+    Creates a gcLDA model using a dataset object and hyperparameter arguments.
+
+    Parameters
+    ----------
+    dataset : :obj:`gclda.dataset.Dataset`
+        Dataset object containing data needed for model.
+
+    n_topics : int, optional
+        Number of topics to generate in model. The default is 100.
+
+    n_regions : int, optional
+        Number of subregions per topic (>=1). The default is 2.
+
+    alpha : float, optional
+        Prior count on topics for each document. The default is 0.1.
+
+    beta : float, optional
+        Prior count on word-types for each topic. The default is 0.01.
+
+    gamma : float, optional
+        Prior count added to y-counts when sampling z assignments. The
+        default is 0.01.
+
+    delta : float, optional
+        Prior count on subregions for each topic. The default is 1.0.
+
+    dobs : int, optional
+        Spatial region 'default observations' (# observations weighting
+        Sigma estimates in direction of default 'roi_size' value). The
+        default is 25.
+
+    roi_size : float, optional
+        Default spatial 'region of interest' size (default value of
+        diagonals in covariance matrix for spatial distribution, which the
+        distributions are biased towards). The default is 50.0.
+
+    symmetric : bool, optional
+        Whether or not to use symmetry constraint on subregions. Symmetry
+        requires n_regions = 2. The default is False.
+
+    seed_init : int, optional
+        Initial value of random seed. The default is 1.
+
+    Attributes
+    ----------
+    model_name : str
+        Identifier (based on parameter values) for the model.
+
+    wtoken_topic_idx : :obj:`numpy.ndarray` of :obj:`numpy.int64`
+        A number-of-words-by-1 vector of word->topic assignments.
+
+    peak_topic_idx : :obj:`numpy.ndarray` of :obj:`numpy.int64`
+        A number-of-peaks-by-1 vector of peak->topic assignments.
+
+    peak_region_idx : :obj:`numpy.ndarray` of :obj:`numpy.int64`
+        A number-of-peaks-by-1 vector of peak->region assignments.
+
+    n_peak_tokens_doc_by_topic : :obj:`numpy.ndarray` of :obj:`numpy.int64`
+        An n-documents-by-n-topics array. Each cell is the number of
+        peak-tokens for a given document assigned to a given topic.
+
+    n_peak_tokens_region_by_topic : :obj:`numpy.ndarray` of :obj:`numpy.int64`
+        An n-regions-by-n-topics array. Each cell is the number of
+        peak-tokens for a given region assigned to a given topic.
+
+    n_word_tokens_word_by_topic : :obj:`numpy.ndarray` of :obj:`numpy.int64`
+        An n-words-by-n-topics array. Each cell is the number of
+        word-tokens for a given word assigned to a given topic.
+
+    n_word_tokens_doc_by_topic : :obj:`numpy.ndarray` of :obj:`numpy.int64`
+        An n-documents-by-n-topics array. Each cell is the number of
+        word-tokens for a given document assigned to a given topic.
+
+    total_n_word_tokens_by_topic : :obj:`numpy.ndarray` of :obj:`numpy.int64`
+        A 1-by-number-of-words vector. Total number of word-tokens assigned
+        to each topic (across all documents).
+
+    """
+    def __init__(self, dataset, n_topics=100, n_regions=2, symmetric=False,
+                 alpha=.1, beta=.01, gamma=.01, delta=1.0,
+                 dobs=25, roi_size=50.0, seed_init=1):
 
         print('Constructing GC-LDA Model')
 
@@ -70,17 +127,15 @@ class Model(object):
         self.n_topics = n_topics  # Number of topics (T)
         self.n_regions = n_regions  # Number of subregions (R)
         self.alpha = float(alpha)  # Prior count on topics for each doc (\alpha)
-        self.beta = float(beta)  # Prior count on word-types for each topic
-                                 # (\beta)
+        self.beta = float(beta)  # Prior count on word-types for each topic (\beta)
         self.gamma = float(gamma)  # Prior count added to y-counts when sampling
                                    # z assignments (\gamma)
-        self.delta = float(delta)  # Prior count on subregions for each topic
-                                   # (\delta)
+        self.delta = float(delta)  # Prior count on subregions for each topic (\delta)
         self.roi_size = float(roi_size)  # Default ROI (default covariance spatial region
                                          # we regularize towards) (not in paper)
-        self.dobs = float(dobs)  # Sample constant (# observations weighting
-                                 # sigma in direction of default covariance)
-                                 # (not in paper)
+        self.dobs = int(dobs)  # Sample constant (# observations weighting
+                               # sigma in direction of default covariance)
+                               # (not in paper)
         self.symmetric = symmetric  # Use constrained symmetry on subregions?
                                     # (only for n_regions = 2)
 
@@ -88,14 +143,14 @@ class Model(object):
         self.model_name = self._get_model_name()
 
         # --- Get dimensionalities of vectors/matrices from dataset object
-        self.n_word_tokens = len(dataset.wtoken_word_idx)  # Number of word-tokens
-        self.n_peak_tokens = len(dataset.ptoken_doc_idx)  # Number of peak-tokens
-        self.n_word_labels = len(dataset.word_labels)  # Number of word-types
-        self.n_docs = len(dataset.pmids)  # Number of documents
-        self.n_peak_dims = dataset.n_peak_dims  # Dimensionality of peak_locs data
+        self.n_peak_tokens = len(self.dataset.ptoken_doc_idx)  # Number of peak-tokens
+        self.n_word_labels = len(self.dataset.word_labels)  # Number of word-types
+        self.n_docs = len(self.dataset.pmids)  # Number of documents
+        self.n_peak_dims = self.dataset.peak_vals.shape[1]  # Dimensionality of peak_locs data
 
         #  --- Preallocate vectors of assignment indices
-        self.wtoken_topic_idx = np.zeros(self.n_word_tokens, dtype=int)  # word->topic assignments
+        self.wtoken_topic_idx = np.zeros(len(self.dataset.wtoken_word_idx),
+                                         dtype=int)  # word->topic assignments
         self.peak_topic_idx = np.zeros(self.n_peak_tokens, dtype=int)  # peak->topic assignments
         self.peak_region_idx = np.zeros(self.n_peak_tokens, dtype=int)  # peak->region assignments
 
@@ -128,17 +183,17 @@ class Model(object):
         #   regions_sigma = (n_topics, n_regions, n_peak_dims, n_peak_dims)
         self.regions_mu = []
         self.regions_sigma = []
-        for _ in xrange(self.n_topics):
+        
+        for i_topic in range(self.n_topics):
             topic_mu = []
             topic_sigma = []
-            for _ in xrange(self.n_regions):
+            for j_region in range(self.n_regions):
                 topic_mu.append(np.zeros(shape=(1, self.n_peak_dims)))
                 topic_sigma.append(np.zeros(shape=(self.n_peak_dims, self.n_peak_dims)))
             self.regions_mu.append(topic_mu)  # (\mu^{(t)}_r)
             self.regions_sigma.append(topic_sigma)  # (\sigma^{(t)}_r)
 
-        # --- Initialize lists for tracking log-likelihood of data over
-        # sampling iterations
+        # Initialize lists for tracking log-likelihood of data over sampling iterations
         self.loglikely_iter = []  # Tracks iteration we compute each
                                   # loglikelihood at
         self.loglikely_x = []  # Tracks log-likelihood of peak tokens
@@ -170,7 +225,7 @@ class Model(object):
             self.peak_region_idx[:] = (self.dataset.peak_vals[:, 0] > 0).astype(int)
 
         # Update model vectors and count matrices to reflect y and r assignments
-        for i_peak_token in xrange(self.n_peak_tokens):
+        for i_peak_token in range(self.n_peak_tokens):
             # document -idx (d)
             doc = self.dataset.ptoken_doc_idx[i_peak_token]
             topic = self.peak_topic_idx[i_peak_token]  # peak-token -> topic assignment (y_i)
@@ -181,7 +236,7 @@ class Model(object):
 
         # --- Randomly Initialize Word->Topic Assignments (z) for each word
         # token w_i: sample z_i proportional to p(topic|doc_i)
-        for i_word_token in xrange(self.n_word_tokens):
+        for i_word_token in range(len(self.dataset.wtoken_word_idx)):
             # w_i word-type
             word = self.dataset.wtoken_word_idx[i_word_token]
 
@@ -212,7 +267,7 @@ class Model(object):
 
         # --- Get Log-Likelihood of data for Initialized model and save to
         # variables tracking loglikely
-        self._compute_log_likelihood(self.dataset)
+        self._compute_log_likelihood()
 
     # -------------------------------------------------------------------------------
     # <<<<< Model Parameter Update Methods >>>> Update z, Update y/r, Update regions  |
@@ -220,45 +275,62 @@ class Model(object):
 
     def run_complete_iteration(self, loglikely_freq=1, verbose=2):
         """
-        Run a complete update cycle (sample z, sample y&r, update regions)
+        Run a complete update cycle (sample z, sample y&r, update regions).
 
-        Verbosity argument determines how much info we print(to console
+
+        Parameters
+        ----------
+        loglikely_freq : int, optional
+            The frequency with which log-likelihood is updated. Default value
+            is 1 (log-likelihood is updated every iteration).
+
+        verbose : {0, 1, 2}, optional
+            Determines how much info is printed to console. 0 = none,
+            1 = a little, 2 = a lot. Default value is 2.
         """
         self.iter += 1  # Update total iteration count
-        if verbose > 1:
-            print('iter {0:02d}: Sampling z'.format(self.iter))
+
+        if verbose == 2:
+            print('Iter {0:04d}: Sampling z'.format(self.iter))
         self.seed += 1
         self._update_word_topic_assignments(self.seed)  # Update z-assignments
-        if verbose > 1:
-            print('Iter {0:02d}: Sampling y|r'.format(self.iter))
+
+        if verbose == 2:
+            print('Iter {0:04d}: Sampling y|r'.format(self.iter))
         self.seed += 1
         self._update_peak_assignments(self.seed)  # Update y-assignments
-        if verbose > 1:
-            print('Iter {0:02d}: Updating spatial params'.format(self.iter))
+
+        if verbose == 2:
+            print('Iter {0:04d}: Updating spatial params'.format(self.iter))
         self._update_regions()  # Update gaussian estimates for all subregions
 
         # Only update loglikelihood every 'loglikely_freq' iterations
         # (Computing log-likelihood isn't necessary and slows things down a bit)
         if self.iter % loglikely_freq == 0:
-            if verbose > 1:
-                print('Iter {0:02d}: Computing log-likelihood'.format(self.iter))
-            self._compute_log_likelihood(self.dataset)  # Compute log-likelihood of
+            if verbose == 2:
+                print('Iter {0:04d}: Computing log-likelihood'.format(self.iter))
+            self._compute_log_likelihood()  # Compute log-likelihood of
                                                         # model in current state
             if verbose > 0:
-                print('Iter {0:02d} Log-likely: x = {1:10.1f}, w = {2:10.1f}, '
+                print('Iter {0:04d} Log-likely: x = {1:10.1f}, w = {2:10.1f}, '
                       'tot = {3:10.1f}'.format(self.iter, self.loglikely_x[-1],
                                                self.loglikely_w[-1],
                                                self.loglikely_tot[-1]))
 
     def _update_word_topic_assignments(self, randseed):
         """
-        Update wtoken_topic_idx (z) indicator variables assigning words->topics
+        Update wtoken_topic_idx (z) indicator variables assigning words->topics.
+
+        Parameters
+        ----------
+        randseed : int
+            Random seed for this iteration.
         """
         # --- Seed random number generator
         np.random.seed(randseed)  # pylint: disable=no-member
 
         # Loop over all word tokens
-        for i_word_token in range(self.n_word_tokens):
+        for i_word_token in range(len(self.dataset.wtoken_word_idx)):
             # Get indices for current token
             word = self.dataset.wtoken_word_idx[i_word_token]  # w_i word-type
             doc = self.dataset.wtoken_doc_idx[i_word_token]  # w_i doc-index
@@ -296,13 +368,18 @@ class Model(object):
 
     def _update_peak_assignments(self, randseed):
         """
-        Update y / r indicator variables assigning peaks->topics/subregions
+        Update y / r indicator variables assigning peaks->topics/subregions.
+
+        Parameters
+        ----------
+        randseed : int
+            Random seed for this iteration.
         """
         # --- Seed random number generator
         np.random.seed(randseed)  # pylint: disable=no-member
 
         # Retrieve p(x|r,y) for all subregions
-        peak_probs = self._get_peak_probs(self.dataset)
+        peak_probs = self._get_peak_probs()
 
         # Iterate over all peaks x, and sample a new y and r assignment for each
         for i_peak_token in range(self.n_peak_tokens):
@@ -383,6 +460,9 @@ class Model(object):
         """
         Update spatial distribution parameters (Gaussians params for all
         subregions).
+
+        Updates regions_mu and regions_sigma, indicating location and
+        distribution of each subregion.
         """
         # Generate default ROI based on default_width
         default_roi = self.roi_size * np.eye(self.n_peak_dims)
@@ -448,20 +528,20 @@ class Model(object):
                 # -- Estimate Independent Mean For Subregion 1 --
                 # If there are no observations, we set mean equal to zeros, otherwise take MLE
                 if n_obs1 == 0:
-                    m_dim = np.zeros([self.n_peak_dims])
+                    m = np.zeros([self.n_peak_dims])
                 else:
-                    m_dim = np.mean(vals1, axis=0)
+                    m = np.mean(vals1, axis=0)
 
                 # -- Estimate Independent Mean For Subregion 2 --
                 # If there are no observations, we set mean equal to zeros, otherwise take MLE
                 if n_obs2 == 0:
-                    n_dim = np.zeros([self.n_peak_dims])
+                    n = np.zeros([self.n_peak_dims])
                 else:
-                    n_dim = np.mean(vals2, axis=0)
+                    n = np.mean(vals2, axis=0)
 
                 # -- Estimate the weighted means of all dims, where for dim1 we
                 # compute the mean w.r.t. absolute distance from the origin
-                weighted_mean_dim1 = (-m_dim[0]*n_obs1 + n_dim[0]*n_obs2) / (n_obs1 + n_obs2)
+                weighted_mean_dim1 = (-m[0]*n_obs1 + n[0]*n_obs2) / (n_obs1 + n_obs2)
                 weighted_mean_otherdims = np.mean(allvals[:, 1:], axis=0)
 
                 # Store weighted mean estimates
@@ -506,17 +586,36 @@ class Model(object):
     # <<<<< Utility Methods for GC-LDA >>>>> Log-Likelihood, Get Peak-Probs , mnpdf  |
     # --------------------------------------------------------------------------------
 
-    def _compute_log_likelihood(self, dataset, update_vectors=True):
+    def _compute_log_likelihood(self, update_vectors=True):
         """
-        Compute Log-likelihood of a dataset object given current model
+        Compute Log-likelihood of a dataset object given current model.
+
         Computes the log-likelihood of data in any dataset object (either train
         or test) given the posterior predictive distributions over peaks and
-        word-types for the model.
+        word-types for the model. Note that this is not computing the joint
+        log-likelihood of model parameters and data.
 
-        c.f. Newman et al. (2009) 'Distribution algorithms Topic Models' for
-        standard LDA
-        Note that this is not computing the joint log-likelihood of model
-        parameters and data
+        Parameters
+        ----------
+        update_vectors : bool, optional
+            Whether to update model's log-likelihood vectors or not.
+
+        Returns
+        -------
+        x_loglikely : float
+            Total log-likelihood of all peak tokens.
+
+        w_loglikely : float
+            Total log-likelihood of all word tokens.
+
+        tot_loglikely : float
+            Total log-likelihood of peak + word tokens.
+
+        References
+        ----------
+        [1] Newman, D., Asuncion, A., Smyth, P., & Welling, M. (2009).
+        Distributed algorithms for topic models. Journal of Machine Learning
+        Research, 10(Aug), 1801-1828.
         """
         # --- Pre-compute all probabilities from count matrices that are needed
         # for loglikelihood computations
@@ -544,7 +643,7 @@ class Model(object):
         # --- Get the matrix giving p(x_i|r,t) for all x:
         #    NY x NT x NR matrix of probabilities of all peaks given all
         #    topic/subregion spatial distributions
-        peak_probs = self._get_peak_probs(dataset)
+        peak_probs = self._get_peak_probs()
 
         # -----------------------------------------------------------------------------
         # --- Compute observed peaks (x) Loglikelihood:
@@ -553,8 +652,8 @@ class Model(object):
         x_loglikely = 0  # Initialize variable tracking total loglikelihood of all x tokens
 
         # Go over all observed peaks and add p(x|model) to running total
-        for i_peak_token in range(dataset.n_peak_tokens):
-            doc = dataset.ptoken_doc_idx[i_peak_token] - 1  # convert didx from 1-idx to 0-idx
+        for i_peak_token in range(self.n_peak_tokens):
+            doc = self.dataset.ptoken_doc_idx[i_peak_token] - 1  # convert didx from 1-idx to 0-idx
             p_x = 0  # Running total for p(x|d) across subregions:
                      # Compute p(x_i|d) for each subregion separately and then
                      # sum across the subregions
@@ -589,15 +688,16 @@ class Model(object):
         p_wtoken_g_doc = np.dot(docprobs_z, np.transpose(wordprobs))
 
         # Go over all observed word tokens and add p(w|model) to running total
-        for i_word_token in range(dataset.n_word_tokens):
-            word_token = dataset.wtoken_word_idx[i_word_token] - 1  # convert wtoken_word_idx
+        for i_word_token in range(len(self.dataset.wtoken_word_idx)):
+            word_token = self.dataset.wtoken_word_idx[i_word_token] - 1  # convert wtoken_word_idx
                                                                     # from 1-idx to 0-idx
-            doc = dataset.wtoken_doc_idx[i_word_token] - 1  # convert wtoken_doc_idx from
+            doc = self.dataset.wtoken_doc_idx[i_word_token] - 1  # convert wtoken_doc_idx from
                                                             # 1-idx to 0-idx
             p_wtoken = p_wtoken_g_doc[doc, word_token]  # Probability of sampling current
                                                         # w token from d
             # Add log-probability of current token to running total for all w tokens
             w_loglikely += np.log(p_wtoken)  # pylint: disable=no-member
+        tot_loglikely = x_loglikely + w_loglikely
 
         # -----------------------------------------------------------------------------
         # --- Update model log-likelihood history vector (if update_vectors == True)
@@ -605,29 +705,33 @@ class Model(object):
             self.loglikely_iter.append(self.iter)
             self.loglikely_x.append(x_loglikely)
             self.loglikely_w.append(w_loglikely)
-            self.loglikely_tot.append(x_loglikely+w_loglikely)
+            self.loglikely_tot.append(tot_loglikely)
 
         # --- Return loglikely values (used when computing log-likelihood for a
         # dataset-object containing hold-out data)
-        return (x_loglikely, w_loglikely, x_loglikely + w_loglikely)
+        return (x_loglikely, w_loglikely, tot_loglikely)
 
-    def _get_peak_probs(self, dataset):
+    def _get_peak_probs(self):
         """
         Compute a matrix giving p(x|r,t), using all x values in a dataset
         object, and each topic's spatial parameters.
 
-        NY x NT x NR matrix of probabilities, giving probability of sampling
-        each peak (x) from all subregions
+        Returns
+        -------
+        peak_probs : :obj:`numpy.ndarray` of :obj:`numpy.64`
+            nPeaks x nTopics x nRegions matrix of probabilities, giving
+            probability of sampling each peak (x) from all subregions.
         """
-        peak_probs = np.zeros(shape=(dataset.n_peak_tokens, self.n_topics,
+        peak_probs = np.zeros(shape=(self.n_peak_tokens, self.n_topics,
                                      self.n_regions), dtype=float)
         for i_topic in range(self.n_topics):
             for j_region in range(self.n_regions):
-                pdf = multivariate_normal.pdf(dataset.peak_vals,
+                pdf = multivariate_normal.pdf(self.dataset.peak_vals,
                                               mean=self.regions_mu[i_topic][j_region][0],
                                               cov=self.regions_sigma[i_topic][j_region])
                 peak_probs[:, i_topic, j_region] = pdf
         return peak_probs
+
 
     def mnpdf_proportional(self, x, p):
         """
@@ -652,8 +756,8 @@ class Model(object):
 
         # Now compute the probability sampling x from the row-probability vector
         # (in log-space): product_i( p_i^(x_i) ), for all positive indices i
-        m_dim, _ = np.shape(p)
-        x = np.dot(np.ones([m_dim, 1]), x.reshape([1, len(x)]))
+        m, _ = np.shape(p)
+        x = np.dot(np.ones([m, 1]), x.reshape([1, len(x)]))
         xlogp = x * np.log(p)  # pylint: disable=no-member
 
         # Row-sums give total (proportional) of sampling vector x from rows of p
@@ -671,12 +775,19 @@ class Model(object):
         Note that this only returns values proportional to the relative
         probabilities of all proposals for y_i.
 
-        Inputs:
-          z:        A 1-by-T vector of current z counts for document d
-          y:        A 1-by-T vector of current y counts (plus gamma) for
-                    document d
-          output:   A 1-by-T vector giving the proportional probability of z,
-                    given that topic t was incremented
+        Parameters
+        ----------
+        z : :obj:`numpy.ndarray` of :obj:`numpy.int64`
+            A 1-by-T vector of current z counts for document d.
+
+        y : :obj:`numpy.ndarray` of :obj:`numpy.float64`
+            A 1-by-T vector of current y counts (plus gamma) for document d.
+
+        Returns
+        -------
+        p : :obj:`numpy.ndarray` of :obj:`numpy.float64`
+            A 1-by-T vector giving the proportional probability of z, given
+            that topic t was incremented.
         """
         # Compute the proportional probabilities in log-space
         logp = z * np.log((y+1) / y)  # pylint: disable=no-member
@@ -692,26 +803,47 @@ class Model(object):
         """
         Get conditional probability of selecting each voxel in the brain mask
         given each topic.
+
+        Returns
+        -------
+        p_voxel_g_topic : :obj:`numpy.ndarray` of :obj:`numpy.float64`
+            A voxel-by-topic array of conditional probabilities: p(voxel|topic).
+            For cell ij, the value is the probability of voxel i being selected
+            given topic j has already been selected.
+
+        p_topic_g_voxel : :obj:`numpy.ndarray` of :obj:`numpy.float64`
+            A voxel-by-topic array of conditional probabilities: p(topic|voxel).
+            For cell ij, the value is the probability of topic j being selected
+            given voxel i is active.
         """
         masker = self.dataset.masker
         affine = masker.volume.affine
         mask_ijk = np.vstack(np.where(masker.volume.get_data() > 0)).T
         mask_xyz = nib.affines.apply_affine(affine, mask_ijk)
 
-        p_topic_g_voxel = np.zeros((mask_xyz.shape[0], self.n_topics), float)
+        spatial_dists = np.zeros((mask_xyz.shape[0], self.n_topics), float)
         for i_topic in range(self.n_topics):
             for j_region in range(self.n_regions):
                 pdf = multivariate_normal.pdf(mask_xyz,
                                               mean=self.regions_mu[i_topic][j_region][0],
                                               cov=self.regions_sigma[i_topic][j_region])
-                p_topic_g_voxel[:, i_topic] += pdf
-        p_topic_g_voxel /= np.sum(p_topic_g_voxel, axis=1)[:, None]
-        p_topic_g_voxel = np.nan_to_num(p_topic_g_voxel, 0)
-        return p_topic_g_voxel
+                spatial_dists[:, i_topic] += pdf
+        p_topic_g_voxel = spatial_dists / np.sum(spatial_dists, axis=1)[:, None]
+        p_topic_g_voxel = np.nan_to_num(p_topic_g_voxel, 0)  # might be unnecessary
+
+        p_voxel_g_topic = spatial_dists / np.sum(spatial_dists, axis=0)[None, :]
+        p_voxel_g_topic = np.nan_to_num(p_voxel_g_topic, 0)  # might be unnecessary
+
+        return p_topic_g_voxel, p_voxel_g_topic
 
     def save(self, filename):
         """
         Pickle the Model instance to the provided file.
+
+        Parameters
+        ----------
+        filename : str
+            Pickle file to write Model instance to.
         """
         with open(filename, 'w') as _:
             pickle.dump(self, _)
@@ -720,20 +852,31 @@ class Model(object):
     def load(cls, filename):
         """
         Load a pickled Model instance from file.
+
+        Parameters
+        ----------
+        filename : str
+            Pickle file containing a saved Model instance.
         """
         try:
+
             with open(filename, 'r') as _:
                 model = pickle.load(_)
         except UnicodeDecodeError:
             # Need to try this for python3
             with open(filename, 'r') as _:
                 model = pickle.load(_, encoding='latin')
-
         return model
 
     def print_all_model_params(self, outputdir):
         """
-        Run all export-methods: calls all print-methods to export parameters to files
+        Run all export-methods: calls all print-methods to export parameters to
+        files.
+
+        Parameters
+        ----------
+        outputdir : str
+            The name of the output directory.
         """
         # If output directory doesn't exist, make it
         if not isdir(outputdir):
@@ -741,25 +884,29 @@ class Model(object):
 
         # print topic-word distributions for top-K words in easy-to-read format
         outfilestr = join(outputdir, 'Topic_X_Word_Probs.csv')
-        self.print_topic_word_probs(outfilestr, 20)
+        self._print_topic_word_probs(outfilestr, 20)
 
         # print topic x word count matrix: m.n_word_tokens_word_by_topic
         outfilestr = join(outputdir, 'Topic_X_Word_CountMatrix.csv')
-        self.print_topic_word_counts(outfilestr)
+        self._print_topic_word_counts(outfilestr)
 
         # print activation-assignments to topics and subregions:
         # Peak_x, Peak_y, Peak_z, peak_topic_idx, peak_region_idx
         outfilestr = join(outputdir, 'ActivationAssignments.csv')
-        self.print_activation_assignments(outfilestr)
+        self._print_activation_assignments(outfilestr)
 
-    def print_activation_assignments(self, outfilestr):
+    def _print_activation_assignments(self, outfilestr):
         """
         Print Peak->Topic and Peak->Subregion assignments for all x-tokens in
-        dataset
+        dataset.
+
+        Parameters
+        ----------
+        outfilestr : str
+            The name of the output file.
         """
-        # Open the file to print(to
         with open(outfilestr, 'w+') as fid:
-            # print(the column-headers
+            # Print the column-headers
             fid.write('Peak_X,Peak_Y,Peak_Z,Topic_Assignment,Subregion_Assignment\n')
 
             # For each peak-token, print(out its coordinates and current topic/subregion assignment
@@ -772,14 +919,18 @@ class Model(object):
                                                         self.peak_region_idx[i_peak_token]+1)
                 fid.write(outstr)
 
-    def print_topic_word_counts(self, outfilestr):
+    def _print_topic_word_counts(self, outfilestr):
         """
-        Print Topic->Word counts for all topics and words
+        Print Topic->Word counts for all topics and words.
+
+        Parameters
+        ----------
+        outfilestr : str
+            The name of the output file.
         """
-        # Open the file to print(to
         with open(outfilestr, 'w+') as fid:
             # Print the topic-headers
-            fid.write('WordLabel,')  # Header of wlabel column
+            fid.write('WordLabel,')
             for i_topic in range(self.n_topics):
                 fid.write('Topic_{0:02d},'.format(i_topic+1))
             fid.write('\n')
@@ -787,7 +938,6 @@ class Model(object):
             # For each row / wlabel: wlabel-string and its count under each
             # topic (the \phi matrix before adding \beta and normalizing)
             for i_word in range(self.n_word_labels):
-                # print(wlabel[i_word])
                 fid.write('{0},'.format(self.dataset.word_labels[i_word]))
 
                 # Print counts under all topics
@@ -797,11 +947,18 @@ class Model(object):
                 # Newline for next wlabel row
                 fid.write('\n')
 
-    def print_topic_word_probs(self, outfilestr, n_top_words=15):
+    def _print_topic_word_probs(self, outfilestr, n_top_words=15):
         """
-        Print Topic->Word probability distributions for top K words to File
+        Print Topic->Word probability distributions for top K words to File.
+
+        Parameters
+        ----------
+        outfilestr : str
+            The name of the output file.
+
+        n_top_words : int, optional
+            The number of top words to be written out for each topic.
         """
-        # Open the file to print(to
         with open(outfilestr, 'w+') as fid:
             # Compute topic->word probs and marginal topic-probs
             wprobs = self.n_word_tokens_word_by_topic + self.beta
@@ -836,8 +993,14 @@ class Model(object):
         Print Topic Figures: Spatial distributions and Linguistic distributions
         for top K words.
 
-        backgroundpeakfreq: Determines what proportion of peaks we show in the
-        background of each figure
+        Parameters
+        ----------
+        outputdir : str
+            Output directory for topic figures.
+
+        backgroundpeakfreq : int, optional
+            Determines what proportion of peaks we show in the background of
+            each figure. Default = 10.
         """
         # If output directory doesn't exist, make it
         if not isdir(outputdir):
@@ -847,10 +1010,10 @@ class Model(object):
         # ^^ This would need to be changed for handling different data-types
         opts_axlims = [[-75, 75], [-110, 90], [-60, 80]]
         regioncolors = ['r', 'b', 'm', 'g', 'c', 'b']
-        # Get a subset of values to use as background (to illustrate extent of
-        # all peaks)
-        backgroundvals = self.dataset.peak_vals[range(1, len(self.dataset.peak_vals)-1,
-                                                      backgroundpeakfreq), :]
+
+        # Get a subset of values to use as background (to illustrate extent of all peaks)
+        backgroundvals = self.dataset.peak_vals[list(range(1, len(self.dataset.peak_vals)-1,
+                                                           backgroundpeakfreq)), :]
         backgroundvals = np.transpose(backgroundvals)
 
         # Loop over all topics and make a figure for each
@@ -977,6 +1140,12 @@ class Model(object):
     def display_model_summary(self, debug=False):
         """
         Print model summary to console.
+
+        Parameters
+        ----------
+        debug : bool, optional
+            Setting debug to True will print out additional information useful
+            for debugging the model. Default = False.
         """
         print('--- Model Summary ---')
         print(' Current State:')
@@ -999,7 +1168,7 @@ class Model(object):
         print('\t dobs      = {0}'.format(self.dobs))
         print(' Model Training-Data Information:')
         print('\t Dataset Label                 = {0}'.format(self.dataset.dataset_label))
-        print('\t Word-Tokens (n_word_tokens)   = {0}'.format(self.n_word_tokens))
+        print('\t Word-Tokens (n_word_tokens)   = {0}'.format(len(self.dataset.wtoken_word_idx)))
         print('\t Peak-Tokens (n_peak_tokens)   = {0}'.format(self.n_peak_tokens))
         print('\t Word-Types (n_word_labels)    = {0}'.format(self.n_word_labels))
         print('\t Documents (n_docs)            = {0}'.format(self.n_docs))
@@ -1042,12 +1211,17 @@ class Model(object):
         """
         Get a model-string, unique to current dataset label + parameter
         settings.
+
+        Returns
+        -------
+        outstr : str
+            The name of the model.
         """
         outstr = ('{0}_{1}T_{2}R_alpha{3:.3f}_beta{4:.3f}_'
                   'gamma{5:.3f}_delta{6:.3f}_{7}dobs_{8:.1f}roi_{9}symmetric_'
                   '{10}').format(self.dataset.dataset_label, self.n_topics,
                                  self.n_regions, self.alpha, self.beta,
-                                 self.gamma, self.delta, int(self.dobs),
+                                 self.gamma, self.delta, self.dobs,
                                  self.roi_size, self.symmetric, self.seed_init)
         return outstr
 

@@ -1,3 +1,5 @@
+# emacs: -*- mode: python-mode; py-indent-offset: 4; tab-width: 4; indent-tabs-mode: nil -*-
+# ex: set sts=4 ts=4 sw=4 et:
 """
 Tutorial Overview
 This file illustrates basic usage of the python_gclda toolbox. Specifically,
@@ -15,6 +17,7 @@ Note: this tutorial will assume that your working directory is the 'examples/'
 subdirectory within the gclda package. If it is not, the relative paths to the
 datasets need to be modified when creating the variable 'dataset_label' below.
 """
+from builtins import range
 from os import mkdir
 from os.path import join, isdir
 
@@ -35,9 +38,6 @@ dataset_dir = '../datasets/neurosynth/'  # The relative path from the working
                                          # directory to the root-directory
                                          # containing the dataset folder
 dat = Dataset(dataset_label, dataset_dir)  # Create a gclda dataset object 'dat'
-
-# Import data from the .txt files in the dataset directory:
-dat.import_all_data()
 
 # View dataset object after importing data:
 dat.display_dataset_summary()
@@ -98,7 +98,7 @@ results_rootdir = 'gclda_tutorial_results'  # We note that these results come fr
                                             # tutorial, as opposed to the scripts for
                                             # running full models
 if not isdir(results_rootdir):
-	mkdir(results_rootdir)
+    mkdir(results_rootdir)
 
 # We first use the method 'get_model_display_string' to get a string identifier that is
 # unique to the combination of:
@@ -107,7 +107,7 @@ if not isdir(results_rootdir):
 # This is useful for saving model output
 
 # Get model string identifier to use as a results directory
-model_string = model.get_model_display_string()
+model_string = model.model_name
 
 # Append the current model iteration to this directory name
 output_data_dir = join(results_rootdir, '{0}_Iteration_{1}'.format(model_string,

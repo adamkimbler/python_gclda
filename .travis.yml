@@ -1,0 +1,21 @@
+language: python
+
+python:
+- "2.7"
+- "3.5"
+    
+install:
+- pip install pytest pytest-cov
+- pip install coveralls
+- pip install -r requirements.txt
+- pip install https://github.com/neurosynth/neurosynth/archive/master.zip
+
+before_script:
+- python setup.py install
+- "echo backend : Agg > matplotlibrc"
+
+script:
+- py.test --cov-report term-missing --cov=python_gclda
+
+after_success:
+- coveralls
